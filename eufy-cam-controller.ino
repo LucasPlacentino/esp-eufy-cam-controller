@@ -267,7 +267,80 @@ class ParamType(Enum):
 
 */
 
+/*
+from https://github.com/FuzzyMistborn/python-eufy-security/blob/dev/eufy_security/api.py
 
+async def async_authenticate(self) -> None:
+    """Authenticate and get an access token."""
+    auth_resp = await self.request(
+        "post",
+        "passport/login",
+        json={"email": self._email, "password": self._password},
+    )
+    data = auth_resp["data"]
+
+    self._retry_on_401 = False
+    self._token = data["auth_token"]
+    self._token_expiration = datetime.fromtimestamp(data["token_expires_at"])
+    domain = data.get("domain")
+    if domain:
+        self._api_base = f"https://{domain}/v1"
+        _LOGGER.info("Switching to another API_BASE: %s", self._api_base)
+
+
+async def async_update_device_info(self) -> None:
+    """Get the latest device info."""
+    devices_resp = await self.request("post", "app/get_devs_list")
+    self.devices.update(devices_resp["data"])
+
+    stations_resp = await self.request("post", "app/get_hub_list")
+    self.stations.update(stations_resp["data"])
+
+
+async def async_set_params(self, device: Device, data: dict) -> None:
+    """Set device parameters."""
+    params = Params()
+    params.update(data)
+    serialized_params = [param.param_info for param in params]
+
+    if device.is_station:
+        await self.request(
+            "post",
+            "app/upload_hub_params",
+            json={
+                "station_sn": device.station_serial,
+                "params": serialized_params,
+            },
+        )
+    else:
+        await self.request(
+            "post",
+            "app/upload_devs_params",
+            json={
+                "device_sn": device.serial,
+                "station_sn": device.station_serial,
+                "params": serialized_params,
+            },
+        )
+
+*/
+
+/*
+from https://github.com/JanLoebel/eufy-node-client/blob/master/src/p2p/cloud-lookup.service.ts
+
+CloudLookup (for p2p):
+
+export interface Address {
+  host: string;
+  port: number;
+}
+
+private addresses: Array<Address> = [
+{ host: '54.223.148.206', port: 32100 },
+{ host: '18.197.212.165', port: 32100 },
+{ host: '13.251.222.7', port: 32100 },
+
+*/
 
 /*
 
