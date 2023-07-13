@@ -36,16 +36,18 @@ endpoints:
 struct camera
 {
     unsigned int id,
+        char *ip[15],
         String name,
-        String ip
 };
 
 // example
 camera cam1 =
     {
         1,
-        "Indoor Cam 1",
-        "192.168.0.141"};
+        "192.168.0.141",
+        "Indoor Cam 1"
+
+};
 
 cameras = [cam1];
 
@@ -89,13 +91,52 @@ bool wakeup()
 
     if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0)
     {
+        bool api_success = false;
+        /*
+        char id_str[16];
+        bool cam_state = getBool(itoa(cameras[i].id, id_str, 10), false);
+        */
+        bool cam_state = getBool(("state"), false);
+        bool new_cam_state = !cam_state;
         for (int i = 0; i < sizeof(cameras) / sizeof(cameras[0]); i++)
         {
-            char id_str[16];
-            bool cam_state = getBool(itoa(cameras[i].id, id_str, 10), false);
-            println("Turning camera %s (id:%s) %s (ip: %s)\n", cameras[i].name, id_str, cam_state ? "off" : "on", ip);
-            api_call(!cam_state, cameras[i].id); // enable or disable each camera
+            camera cam = cameras[i];
+            println("Turning camera %s (id:%d) %s (ip: %s)\n", cam.name, cam.id, new_cam_state ? "on" : "off", cam.ip);
+            bool api_success_cam = api_call(new_cam_state, cam.id); // enable or disable each camera
+            if (api_success_cam)
+            {
+                Serial.println("Camera %s (id: %d) state changed successfully to %s", cam.name, cam.id, new_cam_state ? "on" : "off");
+            }
+            else
+            {
+                Serial.println("===Camera %s (id: %d) state change FAILED===", cam.name, cam.id);
+            }
+            api_success &= api_success_cam;
         }
+        if (api_success)
+        {
+            Serial.println("Cameras state changed successfully to %s", new_cam_state ? "on" : "off");
+            if (new_cam_state)
+            {
+                digitalWrite(BLUE_LED_PIN, LOW); // turn ON LED
+                digitalWrite(RED_LED_PIN, HIGH);
+                digitalWrite(YELLOW_LED_PIN, HIGH);
+            }
+            else
+            {
+                digitalWrite(RED_LED_PIN, LOW); // turn ON LED
+                digitalWrite(BLUE_LED_PIN, HIGH);
+                digitalWrite(YELLOW_LED_PIN, HIGH);
+            }
+        }
+        else
+        {
+            Serial.println("Cameras new state unknown, some cameras may be ON and some may be OFF");
+            digitalWrite(YELLOW_LED_PIN, LOW); // turn ON LED
+            digitalWrite(RED_LED_PIN, HIGH);
+            digitalWrite(BLUE_LED_PIN, HIGH);
+        }
+        cam_state != cam_state; // toggle state for next wakeup
     }
 }
 
@@ -166,7 +207,9 @@ void send_headers()
 bool api_login()
 {
     Serial.println(F("API Login..."));
-    //...
+
+    // TODO:
+
     char *new_token;
 
     // make request
@@ -191,9 +234,9 @@ bool api_login()
     }
 }
 
-bool api_call()
+bool api_call(bool new_state, int cam_id)
 {
-    //
+    // TODO:
 
     DynamicJsonDocument jsonDoc(capacity);
     jsonDoc["key1"] = "value1";
@@ -233,7 +276,8 @@ bool api_call()
                     api_login();
                     //...
 
-                    return false;
+                    // retry
+                    api_call(new_state, cam_id);
                 } else
                 {
                     Serial.println(F("API call failed"));
@@ -256,22 +300,28 @@ void setup()
 
     if (wake_count == 0) // Run this only the first boot
     {
-        println(F("Starting..."));
+        Serial.println(F("Starting..."));
         ++wake_count;
 
+
+        /* // if we want to set states on a per camera basis (TODO needs to change other things as well):
         for (int i = 0; i < sizeof(cameras) / sizeof(cameras[0]); i++)
         {
             char id_str[16];
             bool cam_state = getBool(itoa(cameras[i].id, id_str, 10), false);
-            println("Init camera (id: %s) state as %s", id_str, cam_state ? "ON (true)" : "OFF (false)");
+            Serial.println("Init camera (id: %s) state as %s", id_str, cam_state ? "ON (true)" : "OFF (false)");
         }
+        */
+        bool cam_state = getBool(("state"), false);
+        Serial.println("Init cameras state as %s", cam_state ? "ON (true)" : "OFF (false)");
+
         preferences.end();
 
         deep_sleep();
     }
     else
     {
-        //++wake_count;
+        //++wake_count; // not needed?
         wakeup();
         preferences.end();
     }
