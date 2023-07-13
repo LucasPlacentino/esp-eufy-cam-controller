@@ -571,8 +571,12 @@ bool api_call(bool new_state, int cam_id)
     // TODO:
 
     DynamicJsonDocument jsonDoc(capacity);
-    jsonDoc["key1"] = "value1";
-    jsonDoc["key2"] = "value2";
+    // from https://github.com/bropat/eufy-security-client/blob/master/src/http/station.ts#L3557
+    //jsonDoc["commandType"] = 1035;
+    jsonDoc["value"] = new_state ? 1 : 0;
+    //jsonDoc["valueSub"] = device.getChannel();
+    //jsonDoc["strValue"] = admin_user_id;
+    //jsonDoc["channel"] = device.getChannel();
 
     String jsonPayload;
     serializeJson(jsonDoc, jsonPayload);
