@@ -28,10 +28,24 @@ endpoints:
 
 */
 
+//* check:
+//
+//? device type INDOOR_PT_CAMERA = 31
+//
+//? PropertyName.DeviceEnabled CommandType.CMD_DEVS_SWITCH = 1035
+//
+//? https://github.com/bropat/eufy-security-client/blob/master/src/http/station.ts#L3557
+//
+//? CommandType.CMD_INDOOR_ENABLE_PRIVACY_MODE 6090
+
 #include <Preferences.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
+#include <WiFiUdp.h>
+#include <NTPClient.h>
 #include SECRETS.h
+
+// TODO ? https://github.com/bropat/eufy-security-client/blob/master/src/http/const.ts
 
 struct camera
 {
@@ -54,15 +68,22 @@ cameras = [cam1];
 Preferences preferences;
 WiFiClientSecure client;
 client.setCACert_P(rootCACertificate, sizeof(rootCACertificate));
+// Define NTP Client to get time
+WiFiUDP ntpUDP;
+// NTPClient timeClient(ntpUDP, NTP_SERVER, NTP_OFFSET);
+NTPClient timeClient(ntpUDP, NTP_SERVER);
 const size_t capacity = JSON_OBJECT_SIZE(2); // Set the capacity according to your JSON structure
 RTC_DATA_ATTR int wake_count = 0;
-char *token;
-char *user_id;
-char *email;
-char *nick_name;
-char *device_public_keys[];
-char *clientPrivateKey;
-char *serverPublicKey = SERVER_PUBLIC_KEY;
+RTC_DATA_ATTR char *token;
+RTC_DATA_ATTR char *user_id;
+RTC_DATA_ATTR char *username;
+RTC_DATA_ATTR char *email;
+RTC_DATA_ATTR char *password;
+RTC_DATA_ATTR char *nick_name;
+String device_public_keys[];
+char *clientPrivateKey; //?
+RTC_DATA_ATTR char *serverPublicKey;
+RTC_DATA_ATTR bool device_trusted;
 
 bool wifi_setup()
 {
@@ -153,14 +174,165 @@ void deep_sleep()
     // esp_light_sleep_start();
 }
 
-void send_headers()
+String encrypt_API_data(String data, Buffer key) // TODO: Buffer type
+{
+    String cipher = create_cipher_iv("aes-256-cbc", key, key.slice(0,16)); //TODO:
+    return (
+        cipher.update(data, "utf8", "base64") +
+        cipher.final("base64")
+    ); //TODO:
+}
+
+Buffer decrypt_API_data_d(String data, Buffer key) // TODO: Buffer type
+{
+    String cipher = create_cipher_iv("aes-256-cbc", key, key.slice(0,16)); //TODO:
+    return Buffer.concat([
+        cipher.update(data, "base64") +
+        cipher.final()]
+    ); //TODO:
+}
+
+String decrypt_API_data(String data, bool json = true)
+{
+    if (data)
+    {
+        String decrypted_data = "";
+        //TODO: try - catch ?
+        try {
+            decrypted_data = decrypt_API_data_d(data, compute_secret(serverPublicKey)); //TODO: compute_secret()
+            // serverPublicKey is in hex
+        } catch (const std::exception &e)
+        {
+            Serial.println("Failed to decrypt data, error: " + e.what());
+            serverPublicKey = SERVER_PUBLIC_KEY;
+            //TODO invalidate token
+        }
+        if (decrypted_data)
+        {
+            if (json)
+            {
+                //TODO: parse json of decrypted_data.toString()
+            }
+            return decrypted_data; // String
+        }
+        if (json)
+        {
+            return "{}"; //?
+        }
+    }
+    return NULL
+}
+
+/*
+PassportProfileResponse get_passport_profile()
+{
+    //TODO
+}
+*/
+
+bool send_verify_code()
+{
+    //TODO:
+
+    bool res = false;
+    // make request
+    DynamicJsonDocument jsonDoc(capacity);
+    jsonDoc["message_type"] = verify_code_type_email; //TODO:
+    jsonDoc["transaction"] = get_time(); // get time, milliseconds since epoch
+
+    String jsonPayload;
+    serializeJson(jsonDoc, jsonPayload);
+
+    if (client.connect(SERVER, PORT))
+    {
+        client.println("POST " + VERIFY_CODE_ENDPOINT + " HTTP/1.1");
+        // send Headers
+        send_login_headers(jsonPayload.length());
+        // send Payload
+        client.println(jsonPayload);
+
+        while (client.connected() || client.available())
+        {
+            if (client.available())
+            {
+                // Process the response
+                char response = client.read();
+                Serial.println(response);
+                if (strstr(response, "200 OK") != NULL)
+                {
+                    //TODO:
+                    Serial.println("Requested verification code for 2FA");
+                    res = true;
+                } else
+                {
+                    Serial.println("Failed to request verification code for 2FA");
+                    res = false;
+                }
+            }
+        }
+        client.stop();
+    }
+    return res;
+}
+
+String list_trust_device()
+{
+    //TODO:
+}
+
+bool add_trust_device(String verify_code)
+{
+    bool res = false;
+    // make request
+    DynamicJsonDocument jsonDoc(capacity);
+    jsonDoc["verify_code"] = verify_code; // TODO:
+    jsonDoc["transaction"] = get_time();              // get time, milliseconds since epoch
+
+    String jsonPayload;
+    serializeJson(jsonDoc, jsonPayload);
+
+    if (client.connect(SERVER, PORT))
+    {
+        client.println("POST " + ADD_TRUST_DEVICE_ENDPOINT + " HTTP/1.1");
+        // send Headers
+        send_login_headers(jsonPayload.length());
+        // send Payload
+        client.println(jsonPayload);
+
+        while (client.connected() || client.available())
+        {
+            if (client.available())
+            {
+                // Process the response
+                char response = client.read();
+                Serial.println(response);
+                if (strstr(response, "200 OK") != NULL)
+                {
+                    // TODO:
+                    Serial.println("2FA successful");
+                    device_trusted = true;
+                    res = true;
+                }
+                else
+                {
+                    Serial.println("2FA Failed");
+                    res = false;
+                }
+            }
+        }
+        client.stop();
+    }
+    return res;
+}
+
+void send_headers(int jsonPayloadLength)
 {
     // Serial
     Serial.println("Host: " + SERVER);
     Serial.println("Content-Type: application/json");
     Serial.println("Connection: close");
     Serial.print("Content-Length: ");
-    Serial.println(jsonPayload.length());
+    Serial.println(jsonPayloadLength);
     Serial.println("X-Auth-Token" + token);
     Serial.println("App_version: " + APP_VERSION);
     Serial.println("Os_type: android");
@@ -184,7 +356,7 @@ void send_headers()
     client.println("Content-Type: application/json");
     client.println("Connection: close");
     client.print("Content-Length: ");
-    client.println(jsonPayload.length());
+    client.println(jsonPayloadLength);
     client.println("X-Auth-Token" + token);
     client.println("App_version: " + APP_VERSION);
     client.println("Os_type: android");
@@ -204,24 +376,129 @@ void send_headers()
     client.println();
 }
 
+String get_time()
+{
+    // updates NTP
+    timeClient.update();
+    unsigned long epochTime;
+    epochTime = timeClient.getEpochTime();
+    Serial.println("Epoch Time: %s", epochTime);
+    return epochTime;
+}
+
+void send_login_headers(int jsonPayloadLength)
+{
+    client.println("Host: " + SERVER);
+    client.println("Content-Type: application/json");
+    client.println("Connection: close");
+    client.print("Content-Length: ");
+    client.println(jsonPayloadLength);
+}
+
+String get_public_key(String deviceSN, PublicKeyType type) //TODO: PublicKeyType enum
+{
+    String res = false;
+    if (device_public_keys[deviceSN] != NULL && type == PublicKeyType.LOCK)
+    {
+        return device_public_keys[deviceSN];
+    } else
+    {
+        // make request
+        if (client.connect(SERVER, PORT))
+        {
+            client.println("POST " + GET_PUBLIC_KEY_ENDPOINT + "?device_sn=" + deviceSN + "&type=" + type +" HTTP/1.1");
+            // send Headers
+            send_headers(jsonPayload.length()); //? TODO: ?
+
+            while (client.connected() || client.available())
+            {
+                if (client.available())
+                {
+                    // Process the response
+                    char response = client.read();
+                    Serial.println(response);
+                    if (strstr(response, "200 OK") != NULL)
+                    {
+                        Serial.println(F("Successfully get public key"));
+                        if (type == PublicKeyType.LOCK)
+                        {
+                            device_public_keys[deviceSN] = response.data.public_key; //TODO: extract public_key from response
+                        }
+                        res = response.data.public_key; //TODO: extract public_key from response
+                    } else
+                    {
+                        Serial.println(F("Failed to get public key"));
+                        res = "";
+                    }
+                }
+            }
+        }
+        client.stop();
+    }
+    return res;
+}
+
 bool api_login()
 {
+    bool res = false;
     Serial.println(F("API Login..."));
 
-    // TODO:
+    // TODO: token = preferences.getString("token", "");
 
     char *new_token;
 
     // make request
     DynamicJsonDocument jsonDoc(capacity);
-    jsonDoc["key1"] = "value1";
-    jsonDoc["key2"] = "value2";
+    jsonDoc["ab"] = COUNTRY;
+    jsonDoc["client_secret_info"] = [ {
+        "public_key" : publicKey
+    } ]; // TODO: publicKey in hex
+    jsonDoc["enc"] = 0;
+    jsonDoc["email"] = username;
+    jsonDoc["password"] = encrypt_API_data(password); //TODO: with SERVER_PUBLIC_KEY(in hex)
+    jsonDoc["time_zone"] = TZ_OFFSET;
+    jsonDoc["transaction"] = get_time(); // get time, milliseconds since epoch
+
+    //if verify_code or captcha:
+    jsonDoc["verify_code"] = "value1";
+    jsonDoc["captcha_id"] = "";
+    jsonDoc["answer"] = "";
 
     String jsonPayload;
     serializeJson(jsonDoc, jsonPayload);
 
+    if (client.connect(SERVER, PORT))
+    {
+        client.println("POST " + LOGIN_ENDPOINT + " HTTP/1.1");
+        // send Headers
+        send_login_headers(jsonPayload.length());
+        // send Payload
+        client.println(jsonPayload);
+
+        while (client.connected() || client.available())
+        {
+            if (client.available())
+            {
+                // Process the response
+                char response = client.read();
+                Serial.println(response);
+                if (strstr(response, "200 OK") != NULL)
+                {
+                    Serial.println(F("=> API Login successful: 200 OK"));
+                    //...
+                    res = true;
+                } else
+                {
+                    Serial.println(F("API Login failed"));
+                    //...
+                    res = false
+                }
+            }
+        }
+        client.stop();
+    }
     // handle response
-    if ()
+    if (res)
     {
         token = new_token;
         Serial.println(F("API Login successful"));
@@ -232,6 +509,60 @@ bool api_login()
         Serial.println(F("API Login failed"));
         return false;
     }
+}
+
+Cipher get_ciphers[](int cipherIDs[], String userID)
+{
+
+    String res = "";
+    DynamicJsonDocument jsonDoc(capacity);
+    jsonDoc["cipher_ids"] = cipherIDs;
+    jsonDoc["user_id"] = userID;
+    jsonDoc["transaction"] = get_time(); // get time, milliseconds since epoch
+
+    String jsonPayload;
+    serializeJson(jsonDoc, jsonPayload);
+
+    if (client.connect(SERVER, PORT))
+    {
+        // POST request
+        client.println("POST " + GET_CIPHERS_ENDPOINT + " HTTP/1.1");
+        // send Headers
+        send_headers(jsonPayload.length()); //? TODO:
+        // send Payload
+        client.println(jsonPayload);
+
+        while (client.connected() || client.available())
+        {
+            if (client.available())
+            {
+                // Process the response
+                char response = client.read();
+                Serial.println(response);
+                if (strstr(response, "200 OK") != NULL)
+                {
+                    Cipher ciphers[];
+                    Serial.println(F("Successfully get ciphers"));
+                    //TODO: extract list of ciphers from response
+
+
+                    res = ciphers;
+                } else
+                {
+                    Serial.println(F("Failed to get ciphers"));
+                    res = NULL;
+                }
+            }
+        }
+        client.stop();
+    }
+    return res;
+}
+
+//? needed ?
+String get_cipher(String cipherID, String userID)
+{
+    return get_ciphers([cipherID], userID)[cipherID];
 }
 
 bool api_call(bool new_state, int cam_id)
@@ -251,7 +582,7 @@ bool api_call(bool new_state, int cam_id)
         Serial.println("POST " + ENDPOINT + " HTTP/1.1");
         client.println("POST " + ENDPOINT + " HTTP/1.1");
         // send Headers
-        send_headers();
+        send_headers(jsonPayload.length());
         // send Payload
         Serial.println(jsonPayload);
         client.println(jsonPayload);
@@ -268,22 +599,24 @@ bool api_call(bool new_state, int cam_id)
                     Serial.println(F("=> API call successful: 200 OK"));
                     //...
 
-                    return true;
+                    res = true;
                 } else if (strstr(response, "401" != NULL)
                 {
                     Serial.println(F("=> API call failed: 401 Unauthorized"));
                     Serial.println(F("---Invalidate token and get new one---"));
-                    api_login();
-                    //...
 
+                    api_login();
+
+                    //TODO: retry but not too many times or too fast
                     // retry
                     api_call(new_state, cam_id);
+                    break; break; break;
                 } else
                 {
                     Serial.println(F("API call failed"));
                     //...
 
-                    return false;
+                    res = false;
                 }
             }
         }
@@ -291,18 +624,74 @@ bool api_call(bool new_state, int cam_id)
     }
 }
 
+bool set_parameters(String deviceSN, String stationSN, int param_type, int param_value)
+{
+    // make request
+    DynamicJsonDocument jsonDoc(capacity);
+    jsonDoc["device_sn"] = deviceSN;
+    jsonDoc["stations_sn"] = stationSN;
+    jsonDoc["params"] = [
+        {
+            "param_type": param_type,
+            "param_value": param_value
+        }
+    ];
+
+    String jsonPayload;
+    serializeJson(jsonDoc, jsonPayload);
+
+    if (client.connect(SERVER, PORT))
+    {
+        client.println("POST " + SET_PARAMETERS_ENDPOINT + " HTTP/1.1");
+        // send Headers
+        send_headers(jsonPayload.length()); //? TODO:
+        // send Payload
+        client.println(jsonPayload);
+
+        while (client.connected() || client.available())
+        {
+            if (client.available())
+            {
+                // Process the response
+                char response = client.read();
+                Serial.println(response);
+                if (strstr(response, "200 OK") != NULL)
+                {
+                    // TODO:
+                    Serial.println("Succesfully set new parameters");
+                    return true;
+                }
+                else
+                {
+                    Serial.println("Failed to set new parameters");
+                    return false;
+                }
+            }
+        }
+        client.stop();
+    }
+    //?
+    return false;
+}
+
+void refresh_device_data() // and station ?
+{
+    //TODO ...
+}
+
 void setup()
 {
     // setup
     Serial.begin(9600);
     // delay(100);
+    // start NTP
+    timeClient.begin();
     preferences.begin("cam-states", false);
 
     if (wake_count == 0) // Run this only the first boot
     {
         Serial.println(F("Starting..."));
         ++wake_count;
-
 
         /* // if we want to set states on a per camera basis (TODO needs to change other things as well):
         for (int i = 0; i < sizeof(cameras) / sizeof(cameras[0]); i++)
@@ -314,6 +703,8 @@ void setup()
         */
         bool cam_state = getBool(("state"), false);
         Serial.println("Init cameras state as %s", cam_state ? "ON (true)" : "OFF (false)");
+
+        api_login(); // get token
 
         preferences.end();
 
