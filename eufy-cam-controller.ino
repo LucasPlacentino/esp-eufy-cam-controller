@@ -29,37 +29,45 @@ endpoints:
 */
 
 #include <Preferences.h>
+#include <WiFiClientSecure.h>
+#include <ArduinoJson.h>
 #include SECRETS.h
-//#define TIME_TO_SLEEP 6000 // Time ESP32 will go to sleep (in seconds)
-#define BTN_PIN 4 //make sure the GPIO pin is one that is supported for waking up the ESP from deep sleep
-#define TZ "Europe/Brussels" //timezone
 
 struct camera
 {
     unsigned int id,
-    String name,
-    String ip
+        String name,
+        String ip
 };
 
-//example
+// example
 camera cam1 =
-{
-    1,
-    "Indoor Cam 1",
-    "192.168.0.141"
-};
+    {
+        1,
+        "Indoor Cam 1",
+        "192.168.0.141"};
 
 cameras = [cam1];
 
 Preferences preferences;
+WiFiClientSecure client;
+client.setCACert_P(rootCACertificate, sizeof(rootCACertificate));
+const size_t capacity = JSON_OBJECT_SIZE(2); // Set the capacity according to your JSON structure
 RTC_DATA_ATTR int wake_count = 0;
+char *token;
+char *user_id;
+char *email;
+char *nick_name;
+char *device_public_keys[];
+char *clientPrivateKey;
+char *serverPublicKey = SERVER_PUBLIC_KEY;
 
 bool wifi_setup()
 {
     //
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASS);
-    
+
     Serial.println(F("Connecting to WiFi"));
     while (WiFi.status() != WL_CONNECTED)
     {
@@ -68,7 +76,7 @@ bool wifi_setup()
     }
     Serial.print(F("Connected to the WiFi network: "));
     Serial.println(WIFI_SSID);
-    
+
     Serial.print(F("IP: "));
     Serial.println(WiFi.localIP());
 }
@@ -76,12 +84,12 @@ bool wifi_setup()
 bool wakeup()
 {
     println(F("Waking up from deep sleep..."));
-    
+
     esp_wifi_start();
-    
+
     if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0)
     {
-        for (int i=0; i<sizeof(cameras)/sizeof(cameras[0]); i++)
+        for (int i = 0; i < sizeof(cameras) / sizeof(cameras[0]); i++)
         {
             char id_str[16];
             bool cam_state = getBool(itoa(cameras[i].id, id_str, 10), false);
@@ -93,44 +101,175 @@ bool wakeup()
 
 void deep_sleep()
 {
-    //go into deep sleep
-    
+    // go into deep sleep
+
     esp_wifi_stop(); //?
-    //esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
-    //esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * 1000000);
+    // esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+    // esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * 1000000);
     esp_sleep_enable_ext0_wakeup(BTN_PIN, 0);
     rtc_gpio_isolate(BTN_PIN); // needed ?
     esp_deep_sleep_start();
-    //esp_light_sleep_start();
+    // esp_light_sleep_start();
+}
+
+void send_headers()
+{
+    // Serial
+    Serial.println("Host: " + SERVER);
+    Serial.println("Content-Type: application/json");
+    Serial.println("Connection: close");
+    Serial.print("Content-Length: ");
+    Serial.println(jsonPayload.length());
+    Serial.println("X-Auth-Token" + token);
+    Serial.println("App_version: " + APP_VERSION);
+    Serial.println("Os_type: android");
+    Serial.println("Os_version: " + OS_VERSION);
+    Serial.println("Phone_model: " + PHONE_MODEL);
+    Serial.println("Country: " + COUNTRY);
+    Serial.println("Language: en");
+    Serial.println("Openudid: " + OPENUDID);
+    // "uid: ""
+    Serial.println("Net_type: wifi");
+    Serial.println("Mnc: " + MNC);
+    Serial.println("Mcc: " + MCC);
+    Serial.println("Sn: " + SN);
+    Serial.println("Model_type: " + MODEL_TYPE);
+    Serial.println("Timezone: " + TZ);
+    Serial.println("Cache-Control: no-cache");
+    Serial.println();
+
+    // client
+    client.println("Host: " + SERVER);
+    client.println("Content-Type: application/json");
+    client.println("Connection: close");
+    client.print("Content-Length: ");
+    client.println(jsonPayload.length());
+    client.println("X-Auth-Token" + token);
+    client.println("App_version: " + APP_VERSION);
+    client.println("Os_type: android");
+    client.println("Os_version: " + OS_VERSION);
+    client.println("Phone_model: " + PHONE_MODEL);
+    client.println("Country: " + COUNTRY);
+    client.println("Language: en");
+    client.println("Openudid: " + OPENUDID);
+    // "uid: ""
+    client.println("Net_type: wifi");
+    client.println("Mnc: " + MNC);
+    client.println("Mcc: " + MCC);
+    client.println("Sn: " + SN);
+    client.println("Model_type: " + MODEL_TYPE);
+    client.println("Timezone: " + TZ);
+    client.println("Cache-Control: no-cache");
+    client.println();
+}
+
+bool api_login()
+{
+    Serial.println(F("API Login..."));
+    //...
+    char *new_token;
+
+    // make request
+    DynamicJsonDocument jsonDoc(capacity);
+    jsonDoc["key1"] = "value1";
+    jsonDoc["key2"] = "value2";
+
+    String jsonPayload;
+    serializeJson(jsonDoc, jsonPayload);
+
+    // handle response
+    if ()
+    {
+        token = new_token;
+        Serial.println(F("API Login successful"));
+        return true;
+    }
+    else
+    {
+        Serial.println(F("API Login failed"));
+        return false;
+    }
 }
 
 bool api_call()
 {
     //
+
+    DynamicJsonDocument jsonDoc(capacity);
+    jsonDoc["key1"] = "value1";
+    jsonDoc["key2"] = "value2";
+
+    String jsonPayload;
+    serializeJson(jsonDoc, jsonPayload);
+
+    if (client.connect(SERVER, PORT))
+    {
+        // POST request
+        Serial.println("POST " + ENDPOINT + " HTTP/1.1");
+        client.println("POST " + ENDPOINT + " HTTP/1.1");
+        // send Headers
+        send_headers();
+        // send Payload
+        Serial.println(jsonPayload);
+        client.println(jsonPayload);
+
+        while (client.connected() || client.available())
+        {
+            if (client.available())
+            {
+                // Process the response
+                char response = client.read();
+                Serial.println(response);
+                if (strstr(response, "200 OK") != NULL)
+                {
+                    Serial.println(F("=> API call successful: 200 OK"));
+                    //...
+
+                    return true;
+                } else if (strstr(response, "401" != NULL)
+                {
+                    Serial.println(F("=> API call failed: 401 Unauthorized"));
+                    Serial.println(F("---Invalidate token and get new one---"));
+                    api_login();
+                    //...
+
+                    return false;
+                } else
+                {
+                    Serial.println(F("API call failed"));
+                    //...
+
+                    return false;
+                }
+            }
+        }
+        client.stop();
+    }
 }
 
 void setup()
 {
-    //setup
+    // setup
     Serial.begin(9600);
-    //delay(100);
+    // delay(100);
     preferences.begin("cam-states", false);
-  
-    if (wake_count == 0) //Run this only the first boot
+
+    if (wake_count == 0) // Run this only the first boot
     {
         println(F("Starting..."));
         ++wake_count;
-        
-        for (int i=0; i<sizeof(cameras)/sizeof(cameras[0]); i++)
+
+        for (int i = 0; i < sizeof(cameras) / sizeof(cameras[0]); i++)
         {
             char id_str[16];
             bool cam_state = getBool(itoa(cameras[i].id, id_str, 10), false);
             println("Init camera (id: %s) state as %s", id_str, cam_state ? "ON (true)" : "OFF (false)");
         }
         preferences.end();
-        
+
         deep_sleep();
-    } else
+    }
+    else
     {
         //++wake_count;
         wakeup();
