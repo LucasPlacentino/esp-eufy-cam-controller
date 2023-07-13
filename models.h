@@ -326,6 +326,33 @@ typedef struct
 
 typedef struct
 {
+    int cipher_id;
+    int user_id;
+    String private_key;
+} Cipher;
+
+typedef struct
+{
+    String open_udid;
+    String phone_model;
+    int is_current_device;
+} TrustDevice;
+
+typedef enum
+{
+    TYPE_SMS = 0,
+    TYPE_PUSH = 1,
+    TYPE_EMAL = 2
+} VerifyCodeTypes;
+
+typedef enum
+{
+    SERVER = 1,
+    LOCK = 2
+} PublicKeyType;
+
+typedef struct
+{
     int param_id;
     String station_sn;
     int param_type;
