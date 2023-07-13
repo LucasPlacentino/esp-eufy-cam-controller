@@ -48,12 +48,12 @@ endpoints:
 
 // TODO ? https://github.com/bropat/eufy-security-client/blob/master/src/http/const.ts
 
-struct camera
+typedef struct
 {
     unsigned int id,
         char *ip[15],
         String name,
-};
+} camera;
 
 // example
 camera cam1 =
@@ -64,7 +64,7 @@ camera cam1 =
 
 };
 
-cameras = [cam1];
+camera cameras[] = [cam1];
 
 Preferences preferences;
 WiFiClientSecure client;
