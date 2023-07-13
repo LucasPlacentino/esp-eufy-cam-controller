@@ -15,7 +15,9 @@
 #define YELLOW_LED_PIN 12 // green LED, state unknown
 
 #define TZ "GMT+01:00" // timezone
+#define TZ_OFFSET -1   // timezone offset
 #define COUNTRY "BE"
+#define NTP_SERVER "pool.ntp.org"
 
 // from https://github.com/bropat/eufy-security-client/blob/master/src/http/api.ts
 #define APP_VERSION "" // ex: "v4.6.0_1630"
@@ -32,5 +34,13 @@
 #define SERVER "mysecurity.eufylife.com" // or "security-app.eufylife.com" or "security-app-eu.eufylife.com" or ?
 #define PORT 443
 #define ENDPOINT "/v1/app/get_devs_list" // TODO: get correct endpoints
+#define LOGIN_ENDPOINT "/v2/passport/login_sec"
+#define VERIFY_CODE_ENDPOINT "/v1/sms/send/verify_code"
+#define LIST_TRUST_DEVICE_ENDPOINT "/v1/app/trust_device/list"
+#define ADD_TRUST_DEVICE_ENDPOINT "/v1/app/trust_device/add"
+#define SET_PARAMETERS_ENDPOINT "/v1/app/upload_devs_params"
+#define GET_CIPHERS_ENDPOINT "/v1/app/cipher/get_ciphers"
+#define GET_PUBLIC_KEY_ENDPOINT "v1/app/public_key/query"
+#define GET_PASSPORT_PROFILE_ENDPOINT "/v2/passport/profile"
 
 #endif
