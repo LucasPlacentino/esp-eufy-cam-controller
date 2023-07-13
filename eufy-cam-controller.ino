@@ -43,7 +43,8 @@ endpoints:
 #include <ArduinoJson.h>
 #include <WiFiUdp.h>
 #include <NTPClient.h>
-#include SECRETS.h
+#include "SECRETS.h"
+#include "PARAMS.h"
 
 // TODO ? https://github.com/bropat/eufy-security-client/blob/master/src/http/const.ts
 
