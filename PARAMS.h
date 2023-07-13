@@ -10,6 +10,10 @@
 
 // #define TIME_TO_SLEEP 6000 // Time ESP32 will go to sleep (in seconds)
 #define BTN_PIN 4      // make sure the GPIO pin is one that is supported for waking up the ESP from deep sleep
+#define BLUE_LED_PIN 2 // blue LED, state ON
+#define RED_LED_PIN 15 // red LED, state OFF
+#define YELLOW_LED_PIN 12 // green LED, state unknown
+
 #define TZ "GMT+01:00" // timezone
 #define COUNTRY "BE"
 
