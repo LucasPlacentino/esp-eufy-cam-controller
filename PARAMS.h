@@ -31,7 +31,7 @@
 
 // ----- server -----
 
-#define SERVER "mysecurity.eufylife.com" // or "security-app.eufylife.com" or "security-app-eu.eufylife.com" or ?
+#define SERVER "security-app-eu.eufylife.com" // or "mysecurity.eufylife.com" or "security-app.eufylife.com" or ?
 #define PORT 443
 #define ENDPOINT "/v1/app/get_devs_list" // TODO: get correct endpoints
 #define LOGIN_ENDPOINT "/v2/passport/login_sec"
